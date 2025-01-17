@@ -1,128 +1,149 @@
-import React from 'react';
-import { mount } from 'enzyme';
-import { createStore, applyMiddleware, combineReducers } from 'redux';
-import thunkMiddleware from 'redux-thunk';
-import { Provider } from 'react-redux';
-import nodes from '../../../PageExplorer/reducers/nodes';
-import explorer from '../../../PageExplorer/reducers/explorer'; 
-import { CommentHeader } from '.';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { CommentHeader } from './index';
+import { Author } from '../../state/comments';
 
-const rootReducer = combineReducers({
-  explorer,
-  nodes,
-});
-
-const store = createStore(rootReducer, {}, applyMiddleware(thunkMiddleware));
+const mockStore = {};
 
 describe('CommentHeader', () => {
-  it('exists', () => {
-    expect(CommentHeader).toBeDefined();
+  const commentReply = {
+    author: { name: 'John Doe', avatarUrl: 'https://example.com/avatar.jpg' } as Author,
+    date: new Date('2025-01-17T12:00:00Z').getTime(),
+  };
+
+  it('should display the comment author and date when author is provided', () => {
+    render(<CommentHeader commentReply={commentReply} store={mockStore} focused={false} />);
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('Jan 17, 2025, 12:00 PM')).toBeInTheDocument();
   });
 
-  it('renders without crashing', () => {
-    const commentReply = {
-      author: { name: 'John Doe', avatarUrl: 'https://example.com/avatar.jpg' },
-      date: Date.now(),
-    };
-    const wrapper = mount(
-      <Provider store={store}>
-        <CommentHeader commentReply={commentReply} store={store} focused={false} />
-      </Provider>
-    );
-    expect(wrapper).toMatchSnapshot();
+  it('should not display the author or avatar when author is not provided', () => {
+    const commentReplyWithoutAuthor = { author: null, date: commentReply.date };
+    render(<CommentHeader commentReply={commentReplyWithoutAuthor} store={mockStore} focused={false} />);
+    expect(screen.queryByText('John Doe')).toBeNull();
+    const avatar = screen.queryByAltText('');
+    expect(avatar).toBeNull();
   });
 
-  it('renders with actions if provided', () => {
-    const commentReply = {
-      author: { name: 'Jane Doe', avatarUrl: 'https://example.com/avatar.jpg' },
-      date: Date.now(),
-    };
-    const wrapper = mount(
-      <Provider store={store}>
-        <CommentHeader
-          commentReply={commentReply}
-          store={store}
-          focused={false}
-          onResolve={() => {}}
-          onEdit={() => {}}
-          onDelete={() => {}}
-        />
-      </Provider>
+  it('should show the menu when actions are passed (edit, delete, resolve)', () => {
+    const onEdit = jest.fn();
+    const onDelete = jest.fn();
+    const onResolve = jest.fn();
+    render(
+      <CommentHeader
+        commentReply={commentReply}
+        store={mockStore}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onResolve={onResolve}
+        focused={false}
+      />
     );
-    expect(wrapper.find('.comment-header__more-actions')).toHaveLength(1);
-    expect(wrapper).toMatchSnapshot();
+    const moreActionsButton = screen.getByLabelText('More actions');
+    fireEvent.click(moreActionsButton);
+    expect(screen.getByText('Edit')).toBeInTheDocument();
+    expect(screen.getByText('Delete')).toBeInTheDocument();
+    expect(screen.getByText('Resolve')).toBeInTheDocument();
   });
 
-  it('calls onResolve when resolve button is clicked', () => {
-    const onResolveMock = jest.fn();
-    const commentReply = { author: { name: 'Jane Doe' }, date: Date.now() };
-
-    const wrapper = mount(
-      <Provider store={store}>
-        <CommentHeader
-          commentReply={commentReply}
-          store={store}
-          focused={false}
-          onResolve={onResolveMock}
-          onEdit={true}
-        />
-      </Provider>
+  it('should call onEdit when the edit button is clicked', () => {
+    const onEdit = jest.fn();
+    render(
+      <CommentHeader
+        commentReply={commentReply}
+        store={mockStore}
+        onEdit={onEdit}
+        focused={false}
+      />
     );
-
-    wrapper.find('button').at(0).simulate('click');
-    expect(onResolveMock).toHaveBeenCalledWith(commentReply, store);
+    const moreActionsButton = screen.getByLabelText('More actions');
+    fireEvent.click(moreActionsButton);
+    const editButton = screen.getByText('Edit');
+    fireEvent.click(editButton);
+    expect(onEdit).toHaveBeenCalledWith(commentReply, mockStore);
   });
 
-  it('calls onEdit when edit button is clicked', () => {
-    const onEditMock = jest.fn();
-    const commentReply = { author: { name: 'Jane Doe' }, date: Date.now() };
-
-    const wrapper = mount(
-      <Provider store={store}>
-        <CommentHeader
-          commentReply={commentReply}
-          store={store}
-          focused={false}
-          onEdit={onEditMock}
-        />
-      </Provider>
+  it('should call onDelete when the delete button is clicked', () => {
+    const onDelete = jest.fn();
+    render(
+      <CommentHeader
+        commentReply={commentReply}
+        store={mockStore}
+        onDelete={onDelete}
+        focused={false}
+      />
     );
-
-    wrapper.find('button').at(1).simulate('click');
-    expect(onEditMock).toHaveBeenCalledWith(commentReply, store);
+    const moreActionsButton = screen.getByLabelText('More actions');
+    fireEvent.click(moreActionsButton);
+    const deleteButton = screen.getByText('Delete');
+    fireEvent.click(deleteButton);
+    expect(onDelete).toHaveBeenCalledWith(commentReply, mockStore);
   });
 
-  it('calls onDelete when delete button is clicked', () => {
-    const onDeleteMock = jest.fn();
-    const commentReply = { author: { name: 'Jane Doe' }, date: Date.now() };
-
-    const wrapper = mount(
-      <Provider store={store}>
-        <CommentHeader
-          commentReply={commentReply}
-          store={store}
-          focused={false}
-          onDelete={onDeleteMock}
-        />
-      </Provider>
+  it('should call onResolve when the resolve button is clicked', () => {
+    const onResolve = jest.fn();
+    render(
+      <CommentHeader
+        commentReply={commentReply}
+        store={mockStore}
+        onResolve={onResolve}
+        focused={false}
+      />
     );
-
-    wrapper.find('button').at(2).simulate('click');
-    expect(onDeleteMock).toHaveBeenCalledWith(commentReply, store);
+    const moreActionsButton = screen.getByLabelText('More actions');
+    fireEvent.click(moreActionsButton);
+    const resolveButton = screen.getByText('Resolve');
+    fireEvent.click(resolveButton);
+    expect(onResolve).toHaveBeenCalledWith(commentReply, mockStore);
   });
 
-  it('closes menu when clicking outside', () => {
-    const commentReply = { author: { name: 'John Doe' }, date: Date.now() };
-    const wrapper = mount(
-      <Provider store={store}>
-        <CommentHeader commentReply={commentReply} store={store} focused={false} />
-      </Provider>
+  it('should toggle menu when more actions button is clicked', () => {
+    render(
+      <CommentHeader
+        commentReply={commentReply}
+        store={mockStore}
+        focused={false}
+      />
     );
+    const moreActionsButton = screen.getByLabelText('More actions');
+    fireEvent.click(moreActionsButton);
+    expect(screen.getByText('Edit')).toBeInTheDocument();
+    fireEvent.click(moreActionsButton);
+    expect(screen.queryByText('Edit')).toBeNull();
+  });
 
-    wrapper.find('details').simulate('click');
-    expect(wrapper.find('details').prop('open')).toBe(true);
+  it('should close menu when clicking outside of the menu', () => {
+    render(
+      <CommentHeader
+        commentReply={commentReply}
+        store={mockStore}
+        focused={false}
+      />
+    );
+    const moreActionsButton = screen.getByLabelText('More actions');
+    fireEvent.click(moreActionsButton);
+    expect(screen.getByText('Edit')).toBeInTheDocument();
+    fireEvent.click(document);
+    expect(screen.queryByText('Edit')).toBeNull();
+  });
 
-    document.body.click();
-    expect(wrapper.find('details').prop('open')).toBe(false);
+  it('should close menu when focused is false', () => {
+    render(
+      <CommentHeader
+        commentReply={commentReply}
+        store={mockStore}
+        focused={true}
+      />
+    );
+    const moreActionsButton = screen.getByLabelText('More actions');
+    fireEvent.click(moreActionsButton);
+    expect(screen.getByText('Edit')).toBeInTheDocument();
+    render(
+      <CommentHeader
+        commentReply={commentReply}
+        store={mockStore}
+        focused={false}
+      />
+    );
+    expect(screen.queryByText('Edit')).toBeNull();
   });
 });
